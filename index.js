@@ -39,7 +39,9 @@ const watchObserver = async () => {
       console.log(`Received snapshot: ${[timeLocal, timeRemote]}`);
 
       if (withinMaxDifference(timeRemote, timeLocal)) {
+        //!TODO check if time is within 3hrs of current before turning on
         console.log("turning on full");
+        //!TODO after any turn on action, set a 3 hour timeout to trigger a turn off
       } else {
         if (withinMaxDifference(Date.now(), timeLocal)) {
           console.log("turning on half");
