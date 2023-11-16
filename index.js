@@ -24,30 +24,54 @@ const withinMaxDifference = (first, second) => {
   return Math.abs(first - second) < maxTimestampDifference;
 };
 
+let lightOffTimeoutID = 0;
+
+const clearLightOffTimeout = () => {
+  if (lightOffTimeoutID) {
+    clearTimeout(lightOffTimeoutID);
+    lightOffTimeoutID = 0;
+  }
+};
+
+const lightFull = () => {
+  console.log("turning on full 🌕");
+  clearLightOffTimeout();
+  lightOffTimeoutID = setTimeout(lightOff, maxTimestampDifference);
+};
+
+const lightHalf = () => {
+  console.log("turning on half  🌗");
+  clearLightOffTimeout();
+  lightOffTimeoutID = setTimeout(lightOff, maxTimestampDifference);
+};
+
+function lightOff() {
+  clearLightOffTimeout();
+  console.log("turning off 🌑");
+}
+
 let currentData;
 let timeLocal;
 let timeRemote;
 
-const watchObserver = async () => {
+const watchUsersDoc = async () => {
   const doc = await db.collection("hyu").doc("users");
 
-  const observer = doc.onSnapshot(
+  doc.onSnapshot(
     (docSnapshot) => {
       currentData = docSnapshot.data();
       timeLocal = currentData[userLocal];
       timeRemote = currentData[userRemote];
       console.log(`Received snapshot: ${[timeLocal, timeRemote]}`);
 
-      if (withinMaxDifference(timeRemote, timeLocal)) {
-        //!TODO check if time is within 3hrs of current before turning on
-        console.log("turning on full");
-        //!TODO after any turn on action, set a 3 hour timeout to trigger a turn off
-      } else {
-        if (withinMaxDifference(Date.now(), timeLocal)) {
-          console.log("turning on half");
+      if (withinMaxDifference(Date.now(), timeLocal)) {
+        if (withinMaxDifference(timeRemote, timeLocal)) {
+          lightFull();
         } else {
-          console.log("turning off");
+          lightHalf();
         }
+      } else {
+        lightOff();
       }
     },
     (err) => {
@@ -76,4 +100,4 @@ rl.on("line", (input) => {
 });
 // For testing only
 
-watchObserver();
+watchUsersDoc();
