@@ -1,58 +1,77 @@
-require('dotenv').config()
+require("dotenv").config();
+const { initializeApp, cert } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
+const serviceAccount = require("./firebaseAccountKey.json");
+// For testing only
+const readline = require("node:readline");
+const { stdin: input, stdout: output } = require("node:process");
 
-const { initializeApp, applicationDefault, cert } = require('firebase-admin/app');
-const { getFirestore, Timestamp, FieldValue, Filter } = require('firebase-admin/firestore');
-const serviceAccount = require('./firebaseAccountKey.json');
-
-const userLocal = process.env.userLocal;
-const userRemote = process.env.userRemote
-
-const maxTimestampDifference = 3 * 60 * 60 * 1000;
+const rl = readline.createInterface({ input, output });
+// For testing only
 
 initializeApp({
-    credential: cert(serviceAccount)
+  credential: cert(serviceAccount),
 });
 
 const db = getFirestore();
+
+const userLocal = process.env.userLocal;
+const userRemote = process.env.userRemote;
+
+const maxTimestampDifference = 3 * 60 * 60 * 1000;
+
+const withinMaxDifference = (first, second) => {
+  return Math.abs(first - second) < maxTimestampDifference;
+};
 
 let currentData;
 let timeLocal;
 let timeRemote;
 
 const watchObserver = async () => {
+  const doc = await db.collection("hyu").doc("users");
 
-    const doc = await db.collection('hyu').doc('users');
+  const observer = doc.onSnapshot(
+    (docSnapshot) => {
+      currentData = docSnapshot.data();
+      timeLocal = currentData[userLocal];
+      timeRemote = currentData[userRemote];
+      console.log(`Received snapshot: ${[timeLocal, timeRemote]}`);
 
-    const observer = doc.onSnapshot(docSnapshot => {
-        currentData = docSnapshot.data();
-        timeLocal = currentData[userLocal];
-        timeRemote = currentData[userRemote];
-        console.log(`Received snapshot: ${[timeLocal, timeRemote]}`);
-
-        if (Math.abs(timeLocal - timeRemote) < maxTimestampDifference) {
-            console.log('turning on full')
+      if (withinMaxDifference(timeRemote, timeLocal)) {
+        console.log("turning on full");
+      } else {
+        if (withinMaxDifference(Date.now(), timeLocal)) {
+          console.log("turning on half");
         } else {
-            if (Math.abs(timeLocal - Date.now()) < maxTimestampDifference) {
-                console.log('turning on half');
-            } else {
-                console.log('turning off')
-            }
+          console.log("turning off");
         }
+      }
+    },
+    (err) => {
+      console.log(`Encountered error: ${err}`);
+    }
+  );
+};
 
-    }, err => {
-        console.log(`Encountered error: ${err}`);
-    });
-}
+const setLocalUserTime = async (time) => {
+  await db
+    .collection("hyu")
+    .doc("users")
+    .update({ [userLocal]: time });
+};
 
+// For testing only
+rl.prompt();
+rl.on("line", (input) => {
+  console.log(`Pressed!`);
+  if (withinMaxDifference(Date.now(), timeLocal)) {
+    const yesterday = Date.now() - 24 * 60 * 60 * 1000;
+    setLocalUserTime(yesterday);
+  } else {
+    setLocalUserTime(Date.now());
+  }
+});
+// For testing only
 
-//!TODO: if user time within timedifference, set to 1 day prior
-const setTime = async () => {
-    await db.collection('hyu').doc('users').update({ [userLocal]: Date.now() })
-
-    const res = await db.collection('hyu').doc('users').get();
-    const { gunnar, shay } = res.data();
-    console.log(Math.abs(gunnar - shay));
-
-}
 watchObserver();
-// setTime();
