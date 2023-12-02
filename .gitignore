@@ -1,3 +1,4 @@
 node_modules
 firebaseAccountKey.json
 .env
+users.json
